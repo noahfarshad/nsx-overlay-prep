@@ -1,0 +1,31 @@
+# nsx_prep config. Everything the four clusters need, declared once.
+#
+#   python3 nsx_prep.py build --config this.yaml            plan, changes nothing
+#   python3 nsx_prep.py build --config this.yaml --commit   do it
+#
+# It runs in order: create any missing pool, set each transport VLAN, point each
+# cluster at its pool, then verify. Each step is skipped where it is already right,
+# so a re-run after a partial failure picks up where it stopped.
+
+nsx: nsx01.example.com
+user: admin                    # optional, admin by default
+
+# The cluster whose working overlay config is copied: its transport zone, and
+# its uplink profile for any cluster that has none.
+reference: cluster-ref
+
+# Pools to create if absent. One per TEP VLAN. Left out, nothing is created.
+pools:
+  tep-222-leaf03-04:
+    cidr: 10.0.22.0/24
+    range: 10.0.22.201-10.0.22.250
+    gateway: 10.0.22.254       # the address the leaves hold. Never guessed
+
+# What each cluster should end up with.
+clusters:
+  cluster-a:
+    vlan: 221
+    pool: tep-221-leaf01-02    # already exists
+  cluster-b:
+    vlan: 222
+    pool: tep-222-leaf03-04

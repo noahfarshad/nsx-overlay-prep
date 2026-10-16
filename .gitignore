@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+# your config; the example stays
+/nsx*.yaml
+!/nsx_prep.example.yaml

@@ -1,0 +1,72 @@
+NSX overlay on a brownfield-imported cluster: what has to line up
+=================================================================
+
+                                NSX MANAGER
+   ┌──────────────────────────────────────────────────────────────────────┐
+   │                                                                      │
+   │   TRANSPORT ZONE          UPLINK PROFILE              IP POOL        │
+   │   ┌──────────────┐        ┌────────────────┐      ┌───────────────┐  │
+   │   │ overlay-tz   │        │ transport VLAN │ ◄──► │ cidr          │  │
+   │   │ vlan-tz      │        │ teaming        │  (1) │ gateway       │  │
+   │   └──────┬───────┘        │ MTU            │      │ range         │  │
+   │          │                └───────┬────────┘      └───────┬───────┘  │
+   │          │   (2)                  │   (3)                 │   (4)    │
+   │          └───────────────┬────────┴───────────────────────┘          │
+   │                          ▼                                           │
+   │              TRANSPORT NODE PROFILE                                  │
+   │              ┌──────────────────────────────┐                        │
+   │              │ host_switch = the VDS        │                        │
+   │              │   transport_zone_endpoints   │ ◄── (2) the zone       │
+   │              │   host_switch_profile_ids    │ ◄── (3) the VLAN       │
+   │              │   ip_assignment_spec         │ ◄── (4) the pool       │
+   │              └──────────────┬───────────────┘                        │
+   │                             │                                        │
+   │                 TRANSPORT NODE COLLECTION                            │
+   │                 (binds the profile to one cluster)                   │
+   └─────────────────────────────┼────────────────────────────────────────┘
+                                 │   (5) host preparation runs here
+                                 ▼
+                          vSPHERE CLUSTER
+                 ┌───────────────┴───────────────┐
+                 ▼                               ▼
+            ESXi HOST                       ESXi HOST
+         vmk10 / vmk11                   vmk10 / vmk11
+         (vxlan TCP/IP stack)            (vxlan TCP/IP stack)
+                 │                               │
+                 └────── Geneve tunnels ─────────┘
+                                 │
+                                 ▼
+                            EDGE NODES
+                   TEP on a *different* VLAN, so every
+                   host-to-edge tunnel is ROUTED ── see (1)
+
+
+WHERE IT BREAKS, AND WHAT IT LOOKS LIKE
+---------------------------------------
+
+ (1) Pool has no gateway, edges on another tunnel subnet.
+     Everything reads healthy. No host reaches any edge. VMs get
+     nowhere past their own segment.
+
+ (2) No overlay transport zone on the host switch.
+     The cluster is "Prepared" for VLAN-backed only. No TEP is
+     expected and none appears. This is the documented result of a
+     VCF brownfield import (Broadcom KB 444225).
+
+ (3) Transport VLAN 0, or a VLAN that disagrees with the pool's subnet.
+     TEP addresses allocate cleanly and carry nothing. The most
+     expensive failure here, because every screen says success.
+
+ (4) ip_assignment_spec is NoIpv4 / DHCP with no server / a pool
+     with no free addresses.
+     "TEP IP Address: Not Set" in the NSX UI. There is nothing to
+     build a tunnel endpoint from.
+
+ (5) Host preparation skipped or failed - commonly because the
+     cluster's vLCM image is out of compliance, since NSX installs
+     its VIBs through vLCM on an image-managed cluster.
+     "Install Skipped" / "Preparation Failed". The config above can
+     be perfect and no host is ever touched.
+
+Only (5) is visible as an error without looking for it. (1) through (4)
+all present as a quiet absence of TEPs.

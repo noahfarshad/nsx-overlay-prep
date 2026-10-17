@@ -31,3 +31,7 @@ cd tests && python3 test_nsx_prep_e2e.py
 ```
 
 89 checks on the planners, the guards and the verification, and 79 end-to-end checks that drive `survey` and the apply orchestration against a stub shaped like the real NSX.
+
+## Where it sits
+
+Step four. The hosts were prepared by [esxi-vcf-host-prep](https://github.com/noahfarshad/esxi-vcf-host-prep), the cluster built by [vcf-import-prep](https://github.com/noahfarshad/vcf-import-prep), then imported into VCF and synced into VCF Operations; this puts the overlay on what the import left VLAN-only. Stale NSX on a host before any of that is [nsx-host-cleanup](https://github.com/noahfarshad/nsx-host-cleanup).
